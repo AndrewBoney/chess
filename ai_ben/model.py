@@ -12,32 +12,27 @@ Transformer model
 """
 class TransformerModel(nn.Module):
     """
-    Input: sinp - iteger representing the input size of the model
-           ntoken - integer representing the amount of total tokens
-           ninp - integer representing number of input layers
-           nhead - integer representing the number of heads in the multiheadattention models
-           nhid - integer representing the dimension of the feedforward network model in nn.TransformerEncoder
-           nlayers - integer representing the number of nn.TransformerEncoderLayer in nn.TransformerEncoder
+    Input: config - configuration class. 
            dropout - integer representing the dropout percentage you want to use (Default=0.5) [OPTIONAL]
            padding_indx - integer representing the index of the padding token (Default=32) [OPTIONAL]
     Description: Initailize transormer model class creating the appropiate layers
     Output: None
     """
-    def __init__(self, sinp, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5, padding_idx=32):
+    def __init__(self, config, padding_idx=32):
         super(TransformerModel, self).__init__()
+        self.config = config
         self.model_type = 'Transformer'
-        self.pos_encoder = PositionalEncoding(ninp, dropout) #Positional encoding layer
-        encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout) #Encoder layers
-        self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers) #Wrap all encoder nodes (multihead)
-        self.encoder = nn.Embedding(ntoken, ninp, padding_idx=padding_idx) #Initial encoding of imputs embed layers
+        self.pos_encoder = PositionalEncoding(config.embsize, config.dropout) #Positional encoding layer
+        encoder_layers = TransformerEncoderLayer(config.input_size, config.nhead, config.nhid, config.dropout) #Encoder layers
+        self.transformer_encoder = TransformerEncoder(encoder_layers, config.nlayers) #Wrap all encoder nodes (multihead)
+        self.encoder = nn.Embedding(config.ntokens, config.input_size, padding_idx=padding_idx) #Initial encoding of imputs embed layers
         self.padding_idx = padding_idx #Index of padding token
-        self.ninp = ninp #Number of input items
         self.softmax = nn.Softmax(dim=1) #Softmax activation layer
         self.gelu = nn.GELU() #GELU activation layer
         self.flatten = nn.Flatten(start_dim=1) #Flatten layer
-        self.decoder = nn.Linear(ninp,1) #Decode layer
-        self.v_output = nn.Linear(sinp,3) #Decode layer
-        self.p_output = nn.Linear(sinp,4096) #Decode layer
+        self.decoder = nn.Linear(config.nlayers,1) #Decode layer
+        self.v_output = nn.Linear(config.input_size,3) #Decode layer
+        self.p_output = nn.Linear(config.input_size,4096) #Decode layer
         self.init_weights()
 
     """
@@ -56,7 +51,7 @@ class TransformerModel(nn.Module):
     Output: tuple containing pytorch tensors representing reward and policy
     """
     def forward(self, src):
-        src = self.encoder(src) * math.sqrt(self.ninp)
+        src = self.encoder(src) * math.sqrt(self.config.ninp)
         src = self.pos_encoder(src)
         output = self.transformer_encoder(src) #Encoder memory
         output = self.gelu(output)

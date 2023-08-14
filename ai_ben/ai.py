@@ -1,13 +1,16 @@
+import pandas as pd
+
 import os
 import math
 import json
-import numpy
 import torch
 import random
-import pandas as pd
+
 from copy import deepcopy
-from ai_ben.model import TransformerModel
 from concurrent.futures import ProcessPoolExecutor, as_completed
+
+from ai_ben.config import Config
+from ai_ben.model import TransformerModel
 
 """
 Class used to create game playing AI
@@ -85,7 +88,7 @@ class MCTS:
     Description: MCTS initail variables
     Output: None
     """
-    def __init__(self, max_depth=5, train=False, folder='ai_ben/data', filename='model-active.pth.tar'):
+    def __init__(self, max_depth=5, train=False, folder='ai_ben/data', filename='model-active.pth.tar', config_args={}):
         #print('---------')
         #print(locals())
         #print('SEARCH')
@@ -98,22 +101,11 @@ class MCTS:
         self.log = [] #Each search log
         self.state = [0, 0, 0] #Used to know if leaf node was found and who won
         self.plumbing = Plumbing() #Initalize plumbing
-        #Model Parameters
-        with open(os.path.join(folder, 'model_param.json')) as f:
-            m_param = json.load(f)
-        #print('PARAM')
-        self.Device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #Set divice training will use
-        #print('DEVICE')
-        #print(locals())
-        self.Model = TransformerModel(
-            m_param['input_size'],  #Size of input layer 8x8 board
-            m_param['ntokens'],  #The size of vocabulary
-            m_param['emsize'],  #Embedding dimension
-            m_param['nhead'],  #The number of heads in the multiheadattention models
-            m_param['nhid'],  #The dimension of the feedforward network model in nn.TransformerEncoder
-            m_param['nlayers'],  #The number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-            m_param['dropout'] #The dropout value
-        ).to(self.Device) #Initialize the transformer model
+        self.m_param = Config(**config_args) # Model Parameters
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #Set divice training will use
+        
+        self.Model = TransformerModel(self.config).to(self.Device) #Initialize the transformer model
         #print('MODEL')
         #Load Saved Model
         filepath = os.path.join(folder,  filename)
@@ -265,7 +257,8 @@ class Plumbing():
     def __init__(self):
         from ai_ben.tokens import tokens
         self.notation = {1:'p', 2:'n', 3:'b', 4:'r', 5:'q', 6:'k'} #Map of notation to part number
-        self.token_bank = pd.DataFrame.from_dict(tokens).reset_index() #All tokens
+        # tokens = pd.DataFrame.from_dict(tokens).reset_index() #All tokens
+        self.token_bank = {i : t for t, i in zip(tokens, range(len(tokens)))}
 
     """
     Input: game - object containing the game current state
