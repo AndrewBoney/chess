@@ -1,8 +1,11 @@
-import math
-import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+
+import math
+import torch
+
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 """
 Transformer model
@@ -22,7 +25,6 @@ class TransformerModel(nn.Module):
     """
     def __init__(self, sinp, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5, padding_idx=32):
         super(TransformerModel, self).__init__()
-        from torch.nn import TransformerEncoder, TransformerEncoderLayer
         self.model_type = 'Transformer'
         self.pos_encoder = PositionalEncoding(ninp, dropout) #Positional encoding layer
         encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout) #Encoder layers

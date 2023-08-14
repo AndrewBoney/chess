@@ -23,7 +23,7 @@ a3 b3 c3 d3 e3 f3 g3 h3
 a2 b2 c2 d2 e2 f2 g2 h2
 a1 b1 c1 d1 e1 f1 g1 h1''')
 
-white = 'human' #Values ['human','ai']
+white = 'al' #Values ['human','ai']
 black = 'ai' #Values ['human','ai']
 chess_game = Chess()
 
@@ -38,7 +38,6 @@ if black == 'ai':
     p_type[1] = 1
     b_bot = w_agent(max_depth=50) #Initailize ai_ben bot
     #b_bot = b_agent() #Initailize random bot
-
 else:
     p_type[1] = 0
 

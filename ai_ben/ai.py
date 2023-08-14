@@ -262,9 +262,10 @@ class Plumbing():
     Description: Plumbing initail variables
     Output: None
     """
-    def __init__(self, folder='ai_ben/data', filename='token_bank.csv'):
+    def __init__(self):
+        from ai_ben.tokens import tokens
         self.notation = {1:'p', 2:'n', 3:'b', 4:'r', 5:'q', 6:'k'} #Map of notation to part number
-        self.token_bank = pd.read_csv(f'{folder}/{filename}') #All tokens
+        self.token_bank = pd.DataFrame.from_dict(tokens).reset_index() #All tokens
 
     """
     Input: game - object containing the game current state
@@ -281,7 +282,7 @@ class Plumbing():
                     temp_board[y][x] = 'PAD'
         if len(temp_board) > 0:
             flat = [x for y in temp_board for x in y]
-            result = [self.token_bank['token'].eq(t).idxmax() for t in flat]
+            result = [self.token_bank[t] for t in flat]
             result.insert(0, 1) if game.p_move == 1 else result.insert(0, 2)
         else:
             result = []
