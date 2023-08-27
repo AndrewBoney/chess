@@ -14,6 +14,7 @@ sys.path.insert(0, os.getcwd())
 from chess import Chess
 from ai_ben.ai import Agent, Plumbing
 from ai_ben.model import TransformerModel
+from ai_ben.config import Config
 
 """
 Reinforcement training for AI
@@ -271,18 +272,3 @@ if __name__ == '__main__':
             'state_dict': model.state_dict(),
         }, filepath)
         print(f'{epoch} | {BOARDS} games | {time.time() - start_time} ms | {train_data.size(0)} samples | {total_loss/(GAMES*BOARDS)} loss\n')
-        #Garbage cleanup
-        total_loss = 0
-        train_data = pd.DataFrame()
-        del data
-        del v_targets
-        del p_targets
-        del output
-        del v_loss
-        del p_loss
-        del loss
-        del checkpoint
-        del g_results
-        del model
-        del criterion
-        del optimizer

@@ -101,16 +101,16 @@ class MCTS:
         self.log = [] #Each search log
         self.state = [0, 0, 0] #Used to know if leaf node was found and who won
         self.plumbing = Plumbing() #Initalize plumbing
-        self.m_param = Config(**config_args) # Model Parameters
+        self.config = Config(**config_args) # Model Parameters
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #Set divice training will use
         
-        self.Model = TransformerModel(self.config).to(self.Device) #Initialize the transformer model
+        self.Model = TransformerModel(self.config).to(self.device) #Initialize the transformer model
         #print('MODEL')
         #Load Saved Model
         filepath = os.path.join(folder,  filename)
         if os.path.exists(filepath):
-            checkpoint = torch.load(filepath,  map_location=self.Device)
+            checkpoint = torch.load(filepath,  map_location=self.device)
             self.Model.load_state_dict(checkpoint['state_dict'])
         self.Model.eval()
         #print('PARAM')
@@ -258,7 +258,7 @@ class Plumbing():
         from ai_ben.tokens import tokens
         self.notation = {1:'p', 2:'n', 3:'b', 4:'r', 5:'q', 6:'k'} #Map of notation to part number
         # tokens = pd.DataFrame.from_dict(tokens).reset_index() #All tokens
-        self.token_bank = {i : t for t, i in zip(tokens, range(len(tokens)))}
+        self.token_bank = {t : i for t, i in zip(tokens, range(len(tokens)))}
 
     """
     Input: game - object containing the game current state

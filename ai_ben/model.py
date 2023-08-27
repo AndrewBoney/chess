@@ -22,15 +22,15 @@ class TransformerModel(nn.Module):
         super(TransformerModel, self).__init__()
         self.config = config
         self.model_type = 'Transformer'
-        self.pos_encoder = PositionalEncoding(config.embsize, config.dropout) #Positional encoding layer
-        encoder_layers = TransformerEncoderLayer(config.input_size, config.nhead, config.nhid, config.dropout) #Encoder layers
+        self.pos_encoder = PositionalEncoding(config.emsize, config.dropout) #Positional encoding layer
+        encoder_layers = TransformerEncoderLayer(config.emsize, config.nhead, config.nhid, config.dropout) #Encoder layers
         self.transformer_encoder = TransformerEncoder(encoder_layers, config.nlayers) #Wrap all encoder nodes (multihead)
-        self.encoder = nn.Embedding(config.ntokens, config.input_size, padding_idx=padding_idx) #Initial encoding of imputs embed layers
+        self.encoder = nn.Embedding(config.ntokens, config.emsize, padding_idx=padding_idx) #Initial encoding of imputs embed layers
         self.padding_idx = padding_idx #Index of padding token
         self.softmax = nn.Softmax(dim=1) #Softmax activation layer
         self.gelu = nn.GELU() #GELU activation layer
         self.flatten = nn.Flatten(start_dim=1) #Flatten layer
-        self.decoder = nn.Linear(config.nlayers,1) #Decode layer
+        self.decoder = nn.Linear(config.nhid,1) #Decode layer
         self.v_output = nn.Linear(config.input_size,3) #Decode layer
         self.p_output = nn.Linear(config.input_size,4096) #Decode layer
         self.init_weights()
@@ -51,7 +51,7 @@ class TransformerModel(nn.Module):
     Output: tuple containing pytorch tensors representing reward and policy
     """
     def forward(self, src):
-        src = self.encoder(src) * math.sqrt(self.config.ninp)
+        src = self.encoder(src) * math.sqrt(self.config.input_size)
         src = self.pos_encoder(src)
         output = self.transformer_encoder(src) #Encoder memory
         output = self.gelu(output)
