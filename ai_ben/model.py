@@ -64,29 +64,6 @@ class TransformerModel(nn.Module):
         p = self.softmax(p) #Get softmax probability
         return v, p
 
-    """
-    Input: source - pytorch tensor containing data you wish to get batches from
-           x - integer representing the index of the data you wish to gather
-           y - integer representing the amount of rows you want to grab
-    Description: Generate input and target data for training model
-    Output: list of pytorch tensors containing input and target data [x,y]
-    """
-    def get_batch(source, x, y):
-        data = torch.tensor([])
-        v_target = torch.tensor([])
-        p_target = torch.tensor([])
-        for i in range(y):
-            #Training data
-            if len(source) > 0 and x+i < len(source):
-                d_seq = source[x+i][:len(source[x+i])-4099]
-                data = torch.cat((data, d_seq))
-                #Target data
-                v_seq = source[x+i][-3:]
-                v_target = torch.cat((v_target, v_seq))
-                p_seq = source[x+i][-4099:-3]
-                p_target = torch.cat((p_target, p_seq))
-        return data.reshape(min(y, len(source[x:])), len(source[0])-4099).to(torch.int64), v_target.reshape(min(y, len(source[x:])), 3).to(torch.float), p_target.reshape(min(y, len(source[x:])), 4096).to(torch.float)
-
 """
 Encode input vectors with posistional data
 """
