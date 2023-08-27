@@ -19,6 +19,31 @@ from ai_ben.config import Config
 """
 Reinforcement training for AI
 """
+
+def get_batch(source, x, y):
+    """
+    Input: source - pytorch tensor containing data you wish to get batches from
+            x - integer representing the index of the data you wish to gather
+            y - integer representing the amount of rows you want to grab
+    Description: Generate input and target data for training model
+    Output: list of pytorch tensors containing input and target data [x,y]
+    """
+    data = torch.tensor([])
+    v_target = torch.tensor([])
+    p_target = torch.tensor([])
+    for i in range(y):
+        #Training data
+        if len(source) > 0 and x+i < len(source):
+            d_seq = source[x+i][:len(source[x+i])-4099]
+            data = torch.cat((data, d_seq))
+            #Target data
+            v_seq = source[x+i][-3:]
+            v_target = torch.cat((v_target, v_seq))
+            p_seq = source[x+i][-4099:-3]
+            p_target = torch.cat((p_target, p_seq))
+
+    return data.reshape(min(y, len(source[x:])), len(source[0])-4099).to(torch.int64), v_target.reshape(min(y, len(source[x:])), 3).to(torch.float), p_target.reshape(min(y, len(source[x:])), 4096).to(torch.float)
+
 class train:
     """
     Input: game_name - string representing the game board name
@@ -66,6 +91,8 @@ class train:
         log = []
         plumbing = Plumbing()
         chess_game = deepcopy(Chess()) #'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -'
+
+        pbar = tqdm()
         while True:
             if str(white).lower() != 'ai' or str(black).lower() != 'ai':
                 if chess_game.p_move == 1:
@@ -87,8 +114,8 @@ class train:
                             t_log = pd.DataFrame(log)
                             for i,x in enumerate(k):
                                 t_log[f'value{i}'] = [x]*len(t_log)
-                            t_log = t_log.append(v,ignore_index=True)
-                            imag_log = imag_log.append(t_log,ignore_index=True)
+                            t_log = pd.concat([t_log, v], ignore_index=True)
+                            imag_log = pd.concat([image_log, t_log], ignore_index = True) 
                         imag_log = imag_log.drop_duplicates()
                 else:
                     cur,next = b_bot.choose_action(chess_game)
@@ -100,8 +127,8 @@ class train:
                             t_log = pd.DataFrame(log)
                             for i,x in enumerate(k):
                                 t_log[f'value{i}'] = [x]*len(t_log)
-                            t_log = t_log.append(v,ignore_index=True)
-                            imag_log = imag_log.append(t_log,ignore_index=True)
+                            t_log = pd.concat([t_log, v], ignore_index=True)
+                            imag_log = pd.concat([image_log, t_log], ignore_index = True) 
                         imag_log = imag_log.drop_duplicates()
                 print(f'w {cur.lower()}-->{next.lower()} | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} HASH:{chess_game.EPD_hash()}\n') if chess_game.p_move > 0 else print(f'b {cur.lower()}-->{next.lower()} | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} HASH:{chess_game.EPD_hash()}\n')
             enc_game = plumbing.encode_state(chess_game)
@@ -132,13 +159,16 @@ class train:
                 game_train_data = pd.DataFrame(log)
                 for i, x in enumerate(state):
                     game_train_data[f'value{i}'] = [x]*len(log)
-                    game_train_data[f'value{i}'] = game_train_data[f'value{i}'].astype(float)
                 if 'imag_log' in locals():
-                    game_train_data = game_train_data.append(imag_log,ignore_index=True)
+                    game_train_data = pd.concat([game_train_data, imag_log], ignore_index = True) 
                 game_train_data = game_train_data.astype(float)
                 break
             if valid == True:
                 chess_game.p_move = chess_game.p_move * (-1)
+            
+            pbar.update()
+        
+        pbar.close()
         return state, game_train_data, a_colour
 
     """
@@ -162,12 +192,8 @@ class train:
             else:
                 print('TIE GAME\n')
                 game_results['tie'] += 1
-            train_data = train_data.append(game_train_data, ignore_index=True)
-        del func
-        del games
-        del state
-        del game_train_data
-        del a_colour
+            train_data = pd.concat([train_data, game_train_data], ignore_index=True)
+
         return train_data
 
 if __name__ == '__main__':
@@ -184,8 +210,7 @@ if __name__ == '__main__':
     new_weights = 'model-new.pth.tar' #Active model saved weights filename
 
     #Model parameters
-    with open(os.path.join(folder, parameters)) as f:
-        m_param = json.load(f)
+    config = Config() # TODO: add args
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #Set divice training will use
 
     #Training parameters
@@ -198,8 +223,6 @@ if __name__ == '__main__':
     game_results = {'active':0, 'new':0, 'tie':0}
     for epoch in range(GAMES):
         print(f'STARTING GAMES\n')
-        #print(locals())
-        #g_results = train.run_multiple_matches(BOARDS, epoch)
 
         state, g_results, a_colour = train.play_game(0, epoch, train=True, white=white, black=black, best_of=BEST_OF)
         if ((state == [0, 0, 1] and a_colour == 'b') or (state == [1, 0, 0] and a_colour == 'w')) and str(white).lower() == 'ai' and str(black).lower() == 'ai':
@@ -224,28 +247,22 @@ if __name__ == '__main__':
             print('TIE GAME\n')
             game_results['tie'] += 1
 
-        train_data = train_data.append(g_results, ignore_index=True)
-        train_data = train_data.drop_duplicates()
+        train_data = torch.cat([train_data, g_results], ignore_index=True).drop_duplicates()
+
         print(epoch,game_results,'\n')
         if sum([v for v in game_results.values()]) >= BEST_OF and game_results['new']/max(sum([game_results['new'],game_results['active']]),1) >= 0.51 and str(white).lower() == 'ai' and str(black).lower() == 'ai':
             print(f"NEW MODEL OUTPERFORMED ACTIVE MODEL ({round(game_results['new']/max(sum([game_results['new'],game_results['active']]),1),3)*100}%)\n")
             copyfile(os.path.join(folder,new_weights),os.path.join(folder,active_weights)) #Overwrite active model with new model
         if sum([v for v in game_results.values()]) >= BEST_OF:
             game_results = {'active':0, 'new':0, 'tie':0}
+
         #Load current new model
-        model = TransformerModel(
-            m_param['input_size'], #Size of input layer 8x8 board
-            m_param['ntokens'], #The size of vocabulary
-            m_param['emsize'], #Embedding dimension
-            m_param['nhead'], #The number of heads in the multiheadattention models
-            m_param['nhid'], #The dimension of the feedforward network model in nn.TransformerEncoder
-            m_param['nlayers'], #The number of nn.TransformerEncoderLayer in nn.TransformerEncoder
-            m_param['dropout'] #The dropout value
-        ).to(device) #Initialize the transformer model
+        model = TransformerModel(config).to(device) #Initialize the transformer model
         filepath = os.path.join(folder, new_weights)
         if os.path.exists(filepath):
             checkpoint = torch.load(filepath, map_location=device)
             model.load_state_dict(checkpoint['state_dict'])
+
         #Initailize training
         criterion = torch.nn.BCELoss() #Binary cross entropy loss
         optimizer = torch.optim.SGD(model.parameters(), lr=lr) #Optimization algorithm using stochastic gradient descent
@@ -253,6 +270,7 @@ if __name__ == '__main__':
         start_time = time.time() #Get time of starting process
         train_data = train_data.sample(frac=1).reset_index(drop=True) #Shuffle training data
         train_data = torch.tensor(train_data.values) #Set training data to a tensor
+
         #Start training model
         for batch, i in enumerate(range(0, train_data.size(0) - 1, bsz)):
             data, v_targets, p_targets = TransformerModel.get_batch(train_data, i, bsz) #Get batch data with the selected targets being masked
@@ -264,6 +282,7 @@ if __name__ == '__main__':
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
             total_loss += loss.item() #Increment total loss
+
         #Updated new model
         filepath = os.path.join(folder, new_weights)
         if not os.path.exists(folder):
