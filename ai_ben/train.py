@@ -4,9 +4,12 @@ import math
 import json
 import torch
 import random
+
 import pandas as pd
+
 from copy import deepcopy
 from shutil import copyfile
+from tqdm import tqdm
 
 import sys
 sys.path.insert(0, os.getcwd())
@@ -60,7 +63,7 @@ class train:
     Output: tuple containing game state, training data and which of the players won
     """
     def play_game(game_name, epoch, train=False, white='ai', black='ai', active_model='model-active.pth.tar', new_model='model-new.pth.tar', search_amount=50, max_depth=5, best_of=5):
-        # TODO: deprecate ai vs human option
+        # TODO: deprecate ai vs human
         if str(white).lower() == 'ai' and str(black).lower() == 'ai':
             if (epoch+1) % best_of == 0:
                 a_colour = random.choice(['w', 'b'])
@@ -101,7 +104,7 @@ class train:
                         for i,x in enumerate(k):
                             t_log[f'value{i}'] = [x]*len(t_log)
                         t_log = pd.concat([t_log, v], ignore_index=True)
-                        imag_log = pd.concat([image_log, t_log], ignore_index = True) 
+                        imag_log = pd.concat([imag_log, t_log], ignore_index = True) 
                     imag_log = imag_log.drop_duplicates()
             else:
                 cur,next = b_bot.choose_action(chess_game)
@@ -114,45 +117,46 @@ class train:
                         for i,x in enumerate(k):
                             t_log[f'value{i}'] = [x]*len(t_log)
                         t_log = pd.concat([t_log, v], ignore_index=True)
-                        imag_log = pd.concat([image_log, t_log], ignore_index = True) 
+                        imag_log = pd.concat([imag_log, t_log], ignore_index = True) 
                     imag_log = imag_log.drop_duplicates()
-            print(f'w {cur.lower()}-->{next.lower()} | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} HASH:{chess_game.EPD_hash()}\n') if chess_game.p_move > 0 else print(f'b {cur.lower()}-->{next.lower()} | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} HASH:{chess_game.EPD_hash()}\n')
-        enc_game = plumbing.encode_state(chess_game)
-        valid = False
-        if chess_game.move(cur, next) == False:
-            print('Invalid move')
-        else:
-            valid = True
-            cur_pos = chess_game.board_2_array(cur)
-            next_pos = chess_game.board_2_array(next)
-            log.append({**{f'state{i}':float(s) for i, s in enumerate(enc_game[0])},
-                        **{f'action{x}':1 if x == ((cur_pos[0]+(cur_pos[1]*8))*64)+(next_pos[0]+(next_pos[1]*8)) else 0 for x in range(4096)}})
-        if (str(white).lower() == 'ai' and chess_game.p_move == 1) or (str(black).lower() == 'ai' and chess_game.p_move == -1):
-            state = chess_game.check_state(chess_game.EPD_hash())
-            if state == '50M' or state == '3F':
-                state = [0, 1, 0] #Auto tie
-            elif state == 'PP':
-                chess_game.pawn_promotion(n_part='Q') #Auto queen
-            if state != [0, 1, 0]:
+            #print(f'w {cur.lower()}-->{next.lower()} | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} HASH:{chess_game.EPD_hash()}\n') if chess_game.p_move > 0 else print(f'b {cur.lower()}-->{next.lower()} | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} HASH:{chess_game.EPD_hash()}\n')
+            enc_game = plumbing.encode_state(chess_game)
+            valid = False
+            if chess_game.move(cur, next) == False:
+                pass 
+                #print('Invalid move')
+            else:
+                valid = True
+                cur_pos = chess_game.board_2_array(cur)
+                next_pos = chess_game.board_2_array(next)
+                log.append({**{f'state{i}':float(s) for i, s in enumerate(enc_game[0])},
+                            **{f'action{x}':1 if x == ((cur_pos[0]+(cur_pos[1]*8))*64)+(next_pos[0]+(next_pos[1]*8)) else 0 for x in range(4096)}})
+            if (str(white).lower() == 'ai' and chess_game.p_move == 1) or (str(black).lower() == 'ai' and chess_game.p_move == -1):
+                state = chess_game.check_state(chess_game.EPD_hash())
+                if state == '50M' or state == '3F':
+                    state = [0, 1, 0] #Auto tie
+                elif state == 'PP':
+                    chess_game.pawn_promotion(n_part='Q') #Auto queen
+                if state != [0, 1, 0]:
+                    state = chess_game.is_end()
+            else:
                 state = chess_game.is_end()
-        else:
-            state = chess_game.is_end()
-            if state == [0, 0, 0]:
-                if chess_game.check_state(chess_game.EPD_hash()) == 'PP':
-                    chess_game.pawn_promotion()
-        if sum(state) > 0:
-            print(f'FINISHED | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} STATE:{state}\n')
-            game_train_data = pd.DataFrame(log)
-            for i, x in enumerate(state):
-                game_train_data[f'value{i}'] = [x]*len(log)
-            if 'imag_log' in locals():
-                game_train_data = pd.concat([game_train_data, imag_log], ignore_index = True) 
-            game_train_data = game_train_data.astype(float)
-            break
-        if valid == True:
-            chess_game.p_move = chess_game.p_move * (-1)
-        
-        pbar.update()
+                if state == [0, 0, 0]:
+                    if chess_game.check_state(chess_game.EPD_hash()) == 'PP':
+                        chess_game.pawn_promotion()
+            if sum(state) > 0:
+                #print(f'FINISHED | EPOCH:{epoch} BOARD:{game_name} MOVE:{len(log)} STATE:{state}\n')
+                game_train_data = pd.DataFrame(log)
+                for i, x in enumerate(state):
+                    game_train_data[f'value{i}'] = [x]*len(log)
+                if 'imag_log' in locals():
+                    game_train_data = pd.concat([game_train_data, imag_log], ignore_index = True) 
+                game_train_data = game_train_data.astype(float)
+                break
+            if valid == True:
+                chess_game.p_move = chess_game.p_move * (-1)
+            
+            pbar.update()
         
         pbar.close()
         return state, game_train_data, a_colour
@@ -233,7 +237,7 @@ if __name__ == '__main__':
             print('TIE GAME\n')
             game_results['tie'] += 1
 
-        train_data = torch.cat([train_data, g_results], ignore_index=True).drop_duplicates()
+        train_data = pd.concat([train_data, g_results], ignore_index=True).drop_duplicates()
 
         print(epoch,game_results,'\n')
         if sum([v for v in game_results.values()]) >= BEST_OF and game_results['new']/max(sum([game_results['new'],game_results['active']]),1) >= 0.51 and str(white).lower() == 'ai' and str(black).lower() == 'ai':
